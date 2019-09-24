@@ -1,38 +1,48 @@
 import * as mediasoup from 'mediasoup-client';
+import signaling from './signaling';
 
 async function init() {
   const ws = new WebSocket('ws://127.0.0.1:7001');
-
-  const start = new Date().getTime();
-
   ws.onopen = () => {
-    console.log("onopen of", "in", (new Date().getTime() - start), "ms");
-    ws.send('eeii');
+    signaling.init(ws);
+    mainProgram();
   };
+}
 
-  ws.onmessage = async (message) => {
-    console.log(message);
+async function mainProgram() {
+  const routerRtpCapabilities = await signaling.request('rtpCapabilities');
 
-    const device = new mediasoup.Device();
+  // A device represents an endpoint that connects to a mediasoup Router to send and/or receive media.
+  const device = new mediasoup.Device();
 
-    await device.load({
-      routerRtpCapabilities: JSON.parse(message.data)
+  await device.load({
+    routerRtpCapabilities
+  });
+
+  const {
+    id,
+    iceParameters,
+    iceCandidates,
+    dtlsParameters,
+    sctpParameters
+  } = await signaling.request(
+    'createTransport',
+    {
+      sctpCapabilities : device.sctpCapabilities
     });
 
-    const transport = device.createSendTransport({
-      id: "test",
-      iceParameters  : {},
-      iceCandidates  : [],
-      dtlsParameters : {
-        fingerprints: [
-          'sha-1'
-        ]
-      },
-      sctpParameters : {}
+  console.log(id);
+
+  const transport = device.createSendTransport(
+    {
+      id,
+      iceParameters,
+      iceCandidates,
+      dtlsParameters,
+      sctpParameters
     });
 
-    console.log(transport);
-  };
+  console.log('transport', transport);
 }
 
 init();

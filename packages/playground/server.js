@@ -84,22 +84,57 @@ const uWS = require('uWebSockets.js');
   }
 }); */
 
+function ab2str(buf) {
+  return Buffer.from(buf).toString('utf8');
+}
 
 const port = 7001;
 
-const app = uWS./*SSL*/App().ws('/*', {
+const app = uWS./*SSL*/App()
+.ws('/*', {
   /* Options */
   compression: 0,
   maxPayloadLength: 16 * 1024 * 1024,
   idleTimeout: Infinity,
-  /* Handlers */
   open: (ws, req) => {
     console.log('A WebSocket connected via URL: ' + req.getUrl() + '!');
   },
-  message: (ws, message, isBinary) => {
-    /* Ok is false if backpressure was built up, wait for drain */
-    console.log('eeeee');
-    let ok = ws.send(JSON.stringify(mediasoupRouter.rtpCapabilities), isBinary);
+  message: async (ws, message, isBinary) => {
+    const msg = JSON.parse(ab2str(message));
+
+    if (msg.command === 'rtpCapabilities') {
+      ws.send(JSON.stringify(mediasoupRouter.rtpCapabilities), isBinary);
+    } else if (msg.command === 'createTransport') {
+      console.log('sdfsdfdsf');
+      const sctpCapabilities = msg.options;
+      const webRtcTransportOptions =
+      {
+        listenIps : [
+          { ip: '0.0.0.0', announcedIp: null }
+        ],
+        initialAvailableOutgoingBitrate : 1000000,
+        minimumAvailableOutgoingBitrate : 600000,
+        maxSctpMessageSize              : 262144,
+        // Additional options that are not part of WebRtcTransportOptions.
+        maxIncomingBitrate              : 1500000,
+        enableSctp     : Boolean(sctpCapabilities),
+        numSctpStreams : (sctpCapabilities || {}).numStreams
+      };
+
+      const transport = await mediasoupRouter.createWebRtcTransport(
+        webRtcTransportOptions);
+
+      // noop, to do?
+      // broadcaster.data.transports.set(transport.id, transport);
+
+      ws.send(JSON.stringify({
+        id             : transport.id,
+        iceParameters  : transport.iceParameters,
+        iceCandidates  : transport.iceCandidates,
+        dtlsParameters : transport.dtlsParameters,
+        sctpParameters : transport.sctpParameters
+      }));
+    }
   },
   drain: (ws) => {
     console.log('WebSocket backpressure: ' + ws.getBufferedAmount());
