@@ -19,6 +19,7 @@ async function mainProgram() {
     routerRtpCapabilities
   });
 
+  // create server-side transport for sending/receiving media
   const {
     id,
     iceParameters,
@@ -33,7 +34,8 @@ async function mainProgram() {
 
   console.log(id);
 
-  const transport = device.createSendTransport(
+  // local transport
+  const sendTransport = device.createSendTransport(
     {
       id,
       iceParameters,
@@ -42,7 +44,29 @@ async function mainProgram() {
       sctpParameters
     });
 
-  console.log('transport', transport);
+  console.log('1');
+
+  // Set transport "connect" event handler.
+  sendTransport.on('connect', async ({ dtlsParameters }, callback, errback) =>
+  {
+    console.log('2');
+    // Here we must communicate our local parameters to our remote transport.
+    try {
+      await signaling.request(
+        'transport-connect',
+        {
+          transportId: sendTransport.id,
+          dtlsParameters
+        });
+      console.log('bien?');
+
+      // Done in the server, tell our transport.
+      callback();
+    } catch (error) {
+      // Something was wrong in server side.
+      errback(error);
+    }
+  });
 }
 
 init();

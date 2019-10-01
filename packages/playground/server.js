@@ -105,11 +105,11 @@ const app = uWS./*SSL*/App()
     if (msg.command === 'rtpCapabilities') {
       ws.send(JSON.stringify(mediasoupRouter.rtpCapabilities), isBinary);
     } else if (msg.command === 'createTransport') {
-      console.log('sdfsdfdsf');
       const sctpCapabilities = msg.options;
       const webRtcTransportOptions =
       {
         listenIps : [
+          // local & public ips
           { ip: '0.0.0.0', announcedIp: null }
         ],
         initialAvailableOutgoingBitrate : 1000000,
@@ -134,6 +134,8 @@ const app = uWS./*SSL*/App()
         dtlsParameters : transport.dtlsParameters,
         sctpParameters : transport.sctpParameters
       }));
+    } else if (msg.command === 'transport-connect') {
+      console.log(msg);
     }
   },
   drain: (ws) => {
