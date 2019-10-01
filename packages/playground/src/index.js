@@ -44,12 +44,9 @@ async function mainProgram() {
       sctpParameters
     });
 
-  console.log('1');
-
   // Set transport "connect" event handler.
   sendTransport.on('connect', async ({ dtlsParameters }, callback, errback) =>
   {
-    console.log('2');
     // Here we must communicate our local parameters to our remote transport.
     try {
       await signaling.request(
@@ -67,6 +64,61 @@ async function mainProgram() {
       errback(error);
     }
   });
+
+  // Set transport "produce" event handler.
+  sendTransport.on('produce', async ({ kind, rtpParameters, appData }, callback, errback) => {
+    console.log('produce', appData);
+    // Here we must communicate our local parameters to our remote transport.
+    try {
+      const { id } = await signaling.request(
+        'produce',
+        {
+          transportId : sendTransport.id,
+          kind,
+          rtpParameters,
+          appData
+        });
+
+      // Done in the server, pass the response to our transport.
+      callback({ id });
+    } catch (error) {
+      // Something was wrong in server side.
+      errback(error);
+    }
+  });
+
+  // Set transport "producedata" event handler.
+  sendTransport.on('producedata', async ({ sctpStreamParameters, label, protocol, appData }, callback, errback) => {
+    console.log('producedata');
+    // Here we must communicate our local parameters to our remote transport.
+    try {
+      const { id } = await signaling.request(
+        'produceData',
+        {
+          transportId : sendTransport.id,
+          sctpStreamParameters,
+          label,
+          protocol,
+          appData
+        });
+
+      // Done in the server, pass the response to our transport.
+      callback({ id });
+    } catch (error) {
+      // Something was wrong in server side.
+      errback(error);
+    }
+  });
+
+  // al usar sendTransport hace el on.connect
+
+  const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+  const webcamTrack = stream.getVideoTracks()[0];
+  const webcamProducer = await sendTransport.produce({ track: webcamTrack });
+/*   setTimeout(async () => {
+    const dataProducer = await sendTransport.produceData({ ordered: true, label: 'foo' });
+    console.log('xxx');
+  }, 4000); */
 }
 
 init();

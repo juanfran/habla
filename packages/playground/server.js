@@ -89,6 +89,8 @@ function ab2str(buf) {
 }
 
 const port = 7001;
+const transports = {};
+const producers = {};
 
 const app = uWS./*SSL*/App()
 .ws('/*', {
@@ -124,8 +126,7 @@ const app = uWS./*SSL*/App()
       const transport = await mediasoupRouter.createWebRtcTransport(
         webRtcTransportOptions);
 
-      // noop, to do?
-      // broadcaster.data.transports.set(transport.id, transport);
+      transports[transport.id] = transport;
 
       ws.send(JSON.stringify({
         id             : transport.id,
@@ -135,7 +136,57 @@ const app = uWS./*SSL*/App()
         sctpParameters : transport.sctpParameters
       }));
     } else if (msg.command === 'transport-connect') {
-      console.log(msg);
+      const { transportId, dtlsParameters } = msg.options;
+      const transport = transports[transportId];
+
+      if (!transport)
+        throw new Error(`transport with id "${transportId}" not found`);
+
+      await transport.connect({ dtlsParameters });
+
+      ws.send(JSON.stringify({
+        'transport-connect': 'ok'
+      }));
+    } else if (msg.command === 'produce') {
+      const { transportId, kind, rtpParameters } = msg.options;
+      let { appData } = msg.options;
+      const transport = transports[transportId];
+      appData = { ...appData, peerId: '1234' };
+      const producer =
+        await transport.produce({ kind, rtpParameters, appData });
+
+      // Store the Producer into the protoo Peer data Object.
+      producers[producer.id] = producer;
+
+      // Set Producer events.
+      producer.on('score', (score) => {
+        peer.notify('producerScore', { producerId: producer.id, score })
+          .catch(() => {});
+      });
+
+      producer.on('videoorientationchange', (videoOrientation) => {
+        console.log(
+          'producer "videoorientationchange" event [producerId:%s, videoOrientation:%o]',
+          producer.id, videoOrientation);
+      });
+
+      // Optimization: Create a server-side Consumer for each Peer.
+
+      // Add into the audioLevelObserver.
+      if (producer.kind === 'audio') {
+        this._audioLevelObserver.addProducer({ producerId: producer.id })
+          .catch(() => {});
+      }
+
+      ws.send(JSON.stringify({
+        produce: 'ok',
+        id: producer.id
+      }));
+    } else if (msg.command === 'producedata') {
+      // todo producedata
+      ws.send(JSON.stringify({
+        'producedata': 'ok'
+      }));
     }
   },
   drain: (ws) => {
